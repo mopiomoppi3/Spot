@@ -1,0 +1,879 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>Spotify Web Player</title>
+<script src="https://sdk.scdn.co/spotify-player.js"></script>
+<style>
+  :root{
+    --bg:#f2f2f7; --bg2:#ffffff; --card:#ffffff; --text:#111114; --sub:#6e6e73; --faint:#aeaeb2;
+    --line:rgba(0,0,0,.09); --glass:rgba(255,255,255,.72); --glass-brd:rgba(255,255,255,.65);
+    --accent:#fa2d48; --green:#1db954; --green-d:#169c45; --chip:#e9e9ed; --input:#e9e9ed;
+    --shadow:0 10px 34px rgba(0,0,0,.16); --np-tint:#3a3a44;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#0b0b0f; --bg2:#141419; --card:#1c1c22; --text:#f5f5f7; --sub:#a1a1a6; --faint:#636368;
+      --line:rgba(255,255,255,.11); --glass:rgba(28,28,34,.72); --glass-brd:rgba(255,255,255,.14);
+      --chip:#26262e; --input:#26262e; --shadow:0 10px 34px rgba(0,0,0,.5); }
+  }
+  html{ -webkit-text-size-adjust:100%; }
+  body{ margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP",sans-serif;
+    -webkit-font-smoothing:antialiased; }
+  button{ font-family:inherit; cursor:pointer; border:none; background:none; color:inherit; padding:0; }
+  input{ font-family:inherit; }
+  img{ display:block; }
+  .wrap{ max-width:1060px; margin:0 auto; padding:0 18px 190px; }
+  @media(min-width:760px){ .wrap{ padding:0 28px 190px; } }
+
+  /* ---------- header / titles ---------- */
+  .pagehead{ padding:26px 2px 6px; display:flex; align-items:flex-start; justify-content:space-between; gap:14px; }
+  .pagehead h1{ margin:0; font-size:34px; font-weight:800; letter-spacing:-.02em; }
+  .pagehead .sub{ color:var(--sub); font-size:14px; margin-top:5px; line-height:1.5; }
+  .avatar{ width:46px; height:46px; border-radius:50%; background:linear-gradient(145deg,#8e9bb5,#5f6f92); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-weight:700; font-size:15px; flex:none; overflow:hidden; }
+  .avatar img{ width:100%; height:100%; object-fit:cover; }
+  .sec-title{ font-size:21px; font-weight:800; letter-spacing:-.01em; margin:30px 2px 14px; display:flex; align-items:center; gap:6px; }
+  .sec-title .chev{ color:var(--faint); font-weight:400; }
+
+  /* ---------- generic rows / cards ---------- */
+  .row{ display:flex; align-items:center; gap:13px; padding:9px 6px; border-bottom:1px solid var(--line); width:100%; text-align:left; border-radius:6px; }
+  .row:last-child{ border-bottom:none; }
+  .row:active{ opacity:.65; }
+  .row .art{ width:52px; height:52px; border-radius:7px; object-fit:cover; flex:none; background:var(--chip); box-shadow:0 2px 8px rgba(0,0,0,.14); }
+  .row .art.round{ border-radius:50%; }
+  .row .meta{ flex:1; min-width:0; }
+  .row .t{ font-size:16px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .row .a{ font-size:14px; color:var(--sub); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px; }
+  .row .now-eq{ color:var(--accent); font-size:11px; font-weight:700; letter-spacing:.06em; }
+  .iconbtn{ width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex:none; color:var(--sub); }
+  .iconbtn:active{ background:var(--chip); }
+  .grid{ display:grid; grid-template-columns:1fr 1fr; gap:20px 16px; }
+  @media(min-width:760px){ .grid{ grid-template-columns:repeat(4,1fr); } }
+  .cell{ text-align:left; width:100%; }
+  .cell .art{ width:100%; aspect-ratio:1; border-radius:10px; object-fit:cover; background:var(--chip); box-shadow:0 6px 18px rgba(0,0,0,.16); }
+  .cell .t{ font-size:14.5px; font-weight:600; margin-top:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cell .a{ font-size:13px; color:var(--sub); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px; }
+  .cell .art.round{ border-radius:50%; }
+  .tileart-fallback{ display:flex; align-items:center; justify-content:center; color:#fff; font-weight:800; font-size:26px; }
+
+  /* pickup cards (home) */
+  .pickups{ display:grid; grid-template-columns:1fr; gap:16px; }
+  @media(min-width:680px){ .pickups{ grid-template-columns:1fr 1fr; } }
+  .pickup{ position:relative; border-radius:16px; overflow:hidden; min-height:300px; text-align:left; width:100%; color:#fff; box-shadow:var(--shadow); }
+  .pickup img.bg{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  .pickup .veil{ position:absolute; inset:0; background:linear-gradient(180deg,rgba(0,0,0,.06) 40%,rgba(0,0,0,.55)); }
+  .pickup .pc{ position:absolute; left:0; right:0; bottom:0; padding:18px; }
+  .pickup .pk{ font-size:12.5px; opacity:.85; font-weight:600; }
+  .pickup .pt{ font-size:21px; font-weight:800; line-height:1.3; margin-top:3px; }
+  .pickup .pa{ font-size:14px; opacity:.85; margin-top:2px; }
+  .pickup .brand{ position:absolute; top:14px; right:16px; font-size:13px; font-weight:700; opacity:.95; }
+
+  /* browse tiles (search) */
+  .tiles{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  @media(min-width:760px){ .tiles{ grid-template-columns:repeat(4,1fr); } }
+  .tile{ border-radius:14px; min-height:118px; padding:14px; color:#fff; text-align:left; font-size:17px; font-weight:800; display:flex; align-items:flex-end; width:100%; box-shadow:0 6px 16px rgba(0,0,0,.14); }
+  .tile:active{ transform:scale(.98); }
+
+  /* search */
+  .searchbar{ display:flex; align-items:center; gap:9px; background:var(--input); border-radius:12px; padding:11px 14px; margin-top:14px; }
+  .searchbar svg{ flex:none; color:var(--sub); }
+  .searchbar input{ flex:1; border:none; background:none; outline:none; font-size:16.5px; color:var(--text); min-width:0; }
+  .searchbar input::placeholder{ color:var(--faint); }
+  .chips{ display:flex; gap:8px; flex-wrap:wrap; margin:16px 0 4px; }
+  .chip{ padding:8px 16px; border-radius:999px; background:var(--bg2); border:1px solid var(--line); font-size:14.5px; font-weight:600; color:var(--text); }
+  .chip.on{ background:var(--accent); border-color:var(--accent); color:#fff; }
+
+  /* library shortcut rows */
+  .librow{ display:flex; align-items:center; gap:16px; padding:15px 4px; border-bottom:1px solid var(--line); width:100%; text-align:left; font-size:17.5px; font-weight:500; }
+  .librow .lic{ width:30px; display:flex; justify-content:center; color:var(--accent); flex:none; }
+  .librow .chev{ margin-left:auto; color:var(--faint); }
+
+  /* connect panel */
+  .panel{ background:var(--card); border-radius:20px; padding:24px 22px; box-shadow:0 4px 22px rgba(0,0,0,.07); margin-top:18px; }
+  .panel h2{ margin:0 0 8px; font-size:21px; font-weight:800; }
+  .panel p{ color:var(--sub); font-size:14.5px; line-height:1.7; margin:0 0 12px; }
+  .panel ol{ margin:0 0 14px; padding-left:20px; color:var(--sub); font-size:14.5px; line-height:1.8; }
+  .panel ol b{ color:var(--text); }
+  .field label{ display:block; font-size:13px; font-weight:700; color:var(--sub); margin:16px 0 7px; letter-spacing:.02em; }
+  .field input[type=text]{ width:100%; box-sizing:border-box; padding:13px 14px; font-size:15px; border-radius:12px; border:1px solid var(--line); background:var(--input); color:var(--text); outline:none; }
+  .field input[type=text]:focus{ border-color:var(--green); }
+  .urirow{ display:flex; gap:8px; }
+  .urirow code{ flex:1; display:block; padding:13px 14px; font-size:12.5px; border-radius:12px; background:var(--input); border:1px solid var(--line); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-family:ui-monospace,Menlo,monospace; }
+  .copybtn{ padding:0 16px; border-radius:12px; background:var(--chip); font-weight:700; font-size:14px; flex:none; }
+  .btn-green{ width:100%; margin-top:20px; padding:15px; border-radius:999px; background:var(--green); color:#fff; font-size:16.5px; font-weight:800; box-shadow:0 8px 20px rgba(29,185,84,.35); }
+  .btn-green:disabled{ opacity:.45; box-shadow:none; }
+  .btn-ghost{ width:100%; margin-top:10px; padding:14px; border-radius:999px; background:var(--chip); color:var(--text); font-size:15px; font-weight:700; }
+  .note{ font-size:12.5px; color:var(--faint); line-height:1.6; margin-top:14px; }
+  .statuspill{ display:inline-flex; align-items:center; gap:7px; padding:7px 13px; border-radius:999px; background:var(--chip); font-size:13px; font-weight:700; }
+  .dot{ width:8px; height:8px; border-radius:50%; background:var(--faint); }
+  .dot.on{ background:var(--green); }
+  .err{ background:rgba(250,45,72,.1); color:var(--accent); border-radius:12px; padding:12px 14px; font-size:14px; line-height:1.6; margin-top:14px; display:none; }
+
+  /* ---------- mini player + tab bar (floating glass) ---------- */
+  .dock{ position:fixed; left:0; right:0; bottom:0; z-index:40; padding:0 12px calc(10px + env(safe-area-inset-bottom)); pointer-events:none; }
+  .dock-in{ max-width:1060px; margin:0 auto; display:flex; flex-direction:column; gap:9px; }
+  .mini{ pointer-events:auto; display:flex; align-items:center; gap:11px; padding:8px 10px; border-radius:20px;
+    background:var(--glass); border:1px solid var(--glass-brd); backdrop-filter:blur(24px) saturate(180%); -webkit-backdrop-filter:blur(24px) saturate(180%);
+    box-shadow:var(--shadow); width:100%; text-align:left; }
+  .mini img{ width:44px; height:44px; border-radius:9px; object-fit:cover; background:var(--chip); flex:none; }
+  .mini .meta{ flex:1; min-width:0; }
+  .mini .t{ font-size:15px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mini .a{ font-size:13px; color:var(--sub); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .mini .ctl{ display:flex; align-items:center; gap:4px; flex:none; }
+  .mini .ctl button{ width:42px; height:42px; display:flex; align-items:center; justify-content:center; }
+  .tabbar{ pointer-events:auto; display:flex; border-radius:999px; padding:6px; gap:2px;
+    background:var(--glass); border:1px solid var(--glass-brd); backdrop-filter:blur(24px) saturate(180%); -webkit-backdrop-filter:blur(24px) saturate(180%); box-shadow:var(--shadow); }
+  .tab{ flex:1; display:flex; flex-direction:column; align-items:center; gap:2px; padding:7px 0 5px; border-radius:999px; font-size:11px; font-weight:600; color:var(--sub); }
+  .tab.on{ color:var(--accent); background:rgba(127,127,140,.14); }
+  body.np-open .dock{ display:none; }
+
+  /* ---------- now playing ---------- */
+  .np{ position:fixed; inset:0; z-index:60; color:#fff; display:none; overflow-y:auto; }
+  .np.open{ display:block; }
+  .np-bg{ position:fixed; inset:0; z-index:-1; overflow:hidden; background:var(--np-tint); transition:background .8s; }
+  .np-bg img{ width:100%; height:100%; object-fit:cover; filter:blur(70px) saturate(160%); transform:scale(1.4); opacity:.65; }
+  .np-in{ max-width:560px; margin:0 auto; padding:14px 26px calc(30px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; min-height:100%; box-sizing:border-box; }
+  @media(min-width:900px){ .np-in{ max-width:1020px; } .np-main{ display:grid; grid-template-columns:1fr 1fr; gap:56px; align-items:center; flex:1; } }
+  .grab{ width:44px; height:5px; border-radius:3px; background:rgba(255,255,255,.45); margin:2px auto 18px; border:none; flex:none; }
+  .np-art{ width:100%; aspect-ratio:1; border-radius:14px; object-fit:cover; box-shadow:0 24px 60px rgba(0,0,0,.45); background:rgba(255,255,255,.12); transition:transform .45s cubic-bezier(.2,.8,.25,1); }
+  .np-art.small{ transform:scale(.94); }
+  .np-head{ display:flex; align-items:center; gap:14px; margin-top:22px; }
+  .np-head img{ width:56px; height:56px; border-radius:8px; object-fit:cover; }
+  .np-head .meta{ flex:1; min-width:0; }
+  .np-title{ font-size:23px; font-weight:800; letter-spacing:-.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .np-artist{ font-size:19px; color:rgba(255,255,255,.62); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:1px; }
+  .np-actions{ display:flex; gap:6px; flex:none; }
+  .np-actions button{ width:40px; height:40px; display:flex; align-items:center; justify-content:center; }
+  .np-actions .liked{ color:#fff; }
+  .np-actions .unliked{ color:rgba(255,255,255,.55); }
+  input[type=range]{ -webkit-appearance:none; appearance:none; width:100%; height:26px; background:transparent; cursor:pointer; }
+  input[type=range]::-webkit-slider-runnable-track{ height:5px; border-radius:3px;
+    background:linear-gradient(90deg, rgba(255,255,255,.92) var(--fill,0%), rgba(255,255,255,.32) var(--fill,0%)); }
+  input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:5px; height:5px; margin-top:0; background:transparent; }
+  input[type=range]::-moz-range-track{ height:5px; border-radius:3px; background:rgba(255,255,255,.32); }
+  input[type=range]::-moz-range-progress{ height:5px; border-radius:3px; background:rgba(255,255,255,.92); }
+  input[type=range]::-moz-range-thumb{ width:0; height:0; border:none; background:transparent; }
+  .times{ display:flex; justify-content:space-between; font-size:13.5px; color:rgba(255,255,255,.6); font-variant-numeric:tabular-nums; margin-top:-4px; }
+  .times .badge{ background:rgba(255,255,255,.16); padding:3px 10px; border-radius:6px; font-size:12px; color:rgba(255,255,255,.85); font-weight:600; }
+  .np-controls{ display:flex; align-items:center; justify-content:space-between; margin:16px 8px 4px; }
+  .np-controls button{ color:#fff; display:flex; align-items:center; justify-content:center; }
+  .np-controls button:active{ transform:scale(.92); }
+  .np-controls .mode{ color:rgba(255,255,255,.55); width:44px; height:44px; }
+  .np-controls .mode.on{ color:#fff; }
+  .volrow{ display:flex; align-items:center; gap:12px; margin-top:14px; color:rgba(255,255,255,.55); }
+  .np-bottom{ display:flex; justify-content:space-around; margin-top:22px; }
+  .np-bottom button{ width:52px; height:52px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,.75); }
+  .np-bottom button.on{ background:rgba(255,255,255,.92); color:#333; }
+  .queuebox{ margin-top:10px; }
+  .queuebox h3{ font-size:16px; margin:14px 0 6px; }
+  .qrow{ display:flex; align-items:center; gap:12px; padding:8px 0; width:100%; text-align:left; color:#fff; }
+  .qrow img{ width:46px; height:46px; border-radius:6px; object-fit:cover; }
+  .qrow .t{ font-size:15.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .qrow .a{ font-size:13.5px; color:rgba(255,255,255,.6); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .devlist{ margin-top:8px; }
+  .devrow{ display:flex; align-items:center; gap:12px; width:100%; text-align:left; color:#fff; padding:11px 12px; border-radius:12px; background:rgba(255,255,255,.1); margin-bottom:8px; font-size:15px; font-weight:600; }
+  .devrow.on{ background:rgba(255,255,255,.25); }
+  .devrow .dsub{ font-size:12.5px; color:rgba(255,255,255,.6); font-weight:400; }
+  .sheet-menu{ margin-top:14px; display:flex; flex-direction:column; gap:8px; }
+  .sheet-menu a,.sheet-menu button{ display:flex; align-items:center; gap:12px; padding:14px 16px; border-radius:14px; background:rgba(255,255,255,.13); color:#fff; text-decoration:none; font-size:15.5px; font-weight:600; text-align:left; }
+
+  .toast{ position:fixed; left:50%; bottom:190px; transform:translateX(-50%) translateY(20px); z-index:80; background:rgba(20,20,24,.92); color:#fff;
+    padding:11px 18px; border-radius:999px; font-size:14px; font-weight:600; opacity:0; pointer-events:none; transition:.3s; max-width:88vw; text-align:center; }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+  .empty{ color:var(--sub); font-size:14.5px; line-height:1.7; padding:22px 4px; }
+  .loading{ color:var(--sub); font-size:14px; padding:26px 4px; }
+  .hidden{ display:none !important; }
+  .backbtn{ display:inline-flex; align-items:center; gap:2px; color:var(--accent); font-size:16px; font-weight:600; padding:20px 0 0; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <!-- HOME -->
+  <section id="view-home">
+    <div class="pagehead"><div><h1>ホーム</h1><div class="sub" id="home-sub">あなたへのピックアップ</div></div><div class="avatar" id="home-avatar">♪</div></div>
+    <div id="home-body"></div>
+  </section>
+
+  <!-- LIBRARY -->
+  <section id="view-library" class="hidden">
+    <div class="pagehead"><div><h1>ライブラリ</h1></div><div class="avatar" id="lib-avatar">♪</div></div>
+    <div id="lib-body"></div>
+  </section>
+
+  <!-- SEARCH -->
+  <section id="view-search" class="hidden">
+    <div class="pagehead"><div><h1>検索</h1></div><div class="avatar" id="search-avatar">♪</div></div>
+    <div class="searchbar">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg>
+      <input id="search-input" type="search" placeholder="アーティスト、曲、アルバム、その他" autocomplete="off">
+    </div>
+    <div class="chips" id="search-chips">
+      <button class="chip on" data-type="all">上位の検索結果</button>
+      <button class="chip" data-type="track">曲</button>
+      <button class="chip" data-type="album">アルバム</button>
+      <button class="chip" data-type="artist">アーティスト</button>
+      <button class="chip" data-type="playlist">プレイリスト</button>
+    </div>
+    <div id="search-body"></div>
+  </section>
+
+  <!-- CONNECT / SETTINGS -->
+  <section id="view-connect" class="hidden">
+    <div class="pagehead"><div><h1>接続</h1><div class="sub">Spotify アカウントと連携します</div></div></div>
+    <div style="margin-top:14px;"><span class="statuspill"><span class="dot" id="status-dot"></span><span id="status-text">未接続</span></span></div>
+
+    <div class="panel" id="connect-panel">
+      <h2>Client ID で連携する</h2>
+      <p>このページは単体で動く静的サイトです。サーバーは使わず、あなたの Spotify アプリの <b>Client ID</b> を使ってブラウザから直接 Spotify に接続します（Client Secret は不要・入力しないでください）。</p>
+      <ol>
+        <li><b>developer.spotify.com/dashboard</b> でアプリを作成する</li>
+        <li>アプリの Settings → <b>Redirect URIs</b> に、下のURLをそのまま追加する</li>
+        <li>作成したアプリの <b>Client ID</b> を下に貼って「Spotifyと接続」を押す</li>
+      </ol>
+      <div class="field">
+        <label>リダイレクトURI（Dashboard に登録するURL）</label>
+        <div class="urirow"><code id="redirect-uri" style="user-select:all;-webkit-user-select:all;">—</code></div>
+        <p class="note" style="margin-top:8px;">↑ この文字列を長押し／選択してコピーし、Dashboard に貼り付けてください。</p>
+      </div>
+      <div class="field">
+        <label>Spotify Client ID</label>
+        <input type="text" id="client-id" placeholder="例: 0123456789abcdef0123456789abcdef" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="err" id="auth-err"></div>
+      <button class="btn-green" id="connect-btn" disabled>Spotifyと接続</button>
+      <p class="note">ログインは Spotify 公式の認証画面（PKCE方式）で行われます。アクセストークンはこのタブのセッション内だけに保持され、外部サーバーには送信されません。<br>ブラウザ内再生（このデバイス自体がスピーカーになる機能）には <b>Spotify Premium</b> が必要です。Free の場合は、スマホやPCなど他のデバイスを選んで再生を操作できます。</p>
+    </div>
+
+    <div class="panel hidden" id="account-panel">
+      <h2 id="account-name">接続中</h2>
+      <p id="account-meta"></p>
+      <p style="margin-top:4px;">このブラウザは Spotify Connect デバイス「<b>Muse Web Player</b>」として登録されます。再生素材がこのデバイスで鳴らないときは、今すぐ再生画面の下部からデバイスを確認してください。</p>
+      <button class="btn-ghost" id="transfer-btn">このデバイスで再生する</button>
+      <button class="btn-ghost" id="disconnect-btn">接続を解除する</button>
+    </div>
+  </section>
+
+  <!-- PLAYLIST DETAIL -->
+  <section id="view-playlist" class="hidden">
+    <button class="backbtn" id="pl-back">‹ ライブラリ</button>
+    <div id="pl-body"></div>
+  </section>
+</div>
+
+<!-- DOCK: mini player + tab bar -->
+<div class="dock"><div class="dock-in">
+  <div class="mini hidden" id="mini" role="button" tabindex="0" aria-label="再生画面を開く">
+    <img id="mini-art" alt="">
+    <span class="meta"><span class="t" id="mini-title">—</span><br><span class="a" id="mini-artist">—</span></span>
+    <span class="ctl">
+      <button id="mini-play" aria-label="再生 / 一時停止"></button>
+      <button id="mini-next" aria-label="次へ"><svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5.5v13l8.5-6.5zM16 5h2.4v14H16z"/></svg></button>
+    </span>
+  </div>
+  <nav class="tabbar">
+    <button class="tab on" data-view="home"><svg width="23" height="23" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3 2.8 11h2.7v9h5v-6h3v6h5v-9h2.7z"/></svg>ホーム</button>
+    <button class="tab" data-view="library"><svg width="23" height="23" viewBox="0 0 24 24" fill="currentColor"><path d="M4 3h3v18H4zM9.5 3h3v18h-3zM15.8 4.6l2.9-.8L22 16.4l-2.9.8zM10 18.5A2.6 2.6 0 1 0 12 21v-8h6v-2.6h-8z" transform="scale(.92) translate(1,0)"/></svg>ライブラリ</button>
+    <button class="tab" data-view="search"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.8-3.8"/></svg>検索</button>
+    <button class="tab" data-view="connect"><svg width="23" height="23" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm9 4a9 9 0 0 1-.13 1.48l2.1 1.63-2 3.46-2.48-1a9 9 0 0 1-2.54 1.47L15.56 22h-4l-.39-2.96a9 9 0 0 1-2.54-1.47l-2.48 1-2-3.46 2.1-1.63A9 9 0 0 1 3 12c0-.5.04-1 .13-1.48L1.03 8.89l2-3.46 2.48 1a9 9 0 0 1 2.54-1.47L8.44 2h4l.39 2.96a9 9 0 0 1 2.54 1.47l2.48-1 2 3.46-2.1 1.63c.09.48.13.98.13 1.48z" transform="scale(.9) translate(1.3,1.3)"/></svg>接続</button>
+  </nav>
+</div></div>
+
+<!-- NOW PLAYING -->
+<div class="np" id="np">
+  <div class="np-bg"><img id="np-bg-img" alt=""></div>
+  <div class="np-in">
+    <button class="grab" id="np-close" aria-label="閉じる"></button>
+    <div class="np-main">
+      <div>
+        <img class="np-art" id="np-art" alt="アルバムアートワーク">
+        <div class="np-head" id="np-minihead" style="display:none;">
+          <img id="np-head-art" alt="">
+          <div class="meta"><div class="np-title" id="np-head-title">—</div><div class="np-artist" id="np-head-artist">—</div></div>
+        </div>
+      </div>
+      <div>
+        <div class="np-head" style="margin-top:0;" id="np-titleblock">
+          <div class="meta" style="flex:1;min-width:0;">
+            <div class="np-title" id="np-title">再生中の曲はありません</div>
+            <div class="np-artist" id="np-artist">—</div>
+          </div>
+          <div class="np-actions">
+            <button id="np-like" aria-label="お気に入り"></button>
+            <button id="np-menu-btn" aria-label="メニュー"><svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.9"/><circle cx="12" cy="12" r="1.9"/><circle cx="19" cy="12" r="1.9"/></svg></button>
+          </div>
+        </div>
+
+        <div class="sheet-menu hidden" id="np-menu">
+          <a id="np-apple" href="#" target="_blank" rel="noopener"> Apple Musicで開く</a>
+          <a id="np-spotify" href="#" target="_blank" rel="noopener"> Spotifyで開く</a>
+          <button id="np-add-pl">プレイリストに追加…</button>
+          <div id="np-pl-list"></div>
+        </div>
+
+        <input type="range" id="np-seek" min="0" max="1000" value="0" style="margin-top:18px;">
+        <div class="times"><span id="np-elapsed">0:00</span><span class="badge">Spotify · ロスレス相当ストリーミング</span><span id="np-remain">-0:00</span></div>
+
+        <div class="np-controls">
+          <button class="mode" id="np-shuffle" aria-label="シャッフル"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg></button>
+          <button id="np-prev" aria-label="前へ"><svg width="46" height="46" viewBox="0 0 24 24" fill="currentColor"><path d="M20 5.5v13L10.5 12zM9 5H6.2v14H9z" transform="scale(1.15) translate(-1.5,-1.5)"/></svg></button>
+          <button id="np-play" aria-label="再生 / 一時停止"></button>
+          <button id="np-next" aria-label="次へ"><svg width="46" height="46" viewBox="0 0 24 24" fill="currentColor"><path d="M4 5.5v13L13.5 12zM15 5h2.8v14H15z" transform="scale(1.15) translate(-1.5,-1.5)"/></svg></button>
+          <button class="mode" id="np-repeat" aria-label="リピート"><svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg></button>
+        </div>
+
+        <div class="volrow">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M11 5 6 9H3v6h3l5 4zM15.5 8.5a5 5 0 0 1 0 7" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round"/></svg>
+          <input type="range" id="np-vol" min="0" max="100" value="50">
+          <svg width="21" height="21" viewBox="0 0 24 24" fill="currentColor"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.4 5.6a9 9 0 0 1 0 12.8" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round"/></svg>
+        </div>
+
+        <div class="np-bottom">
+          <button id="np-queue-btn" aria-label="キュー"><svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
+          <button id="np-device-btn" aria-label="デバイス"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/><path d="M7.5 7.5a6.4 6.4 0 0 0 0 9M16.5 7.5a6.4 6.4 0 0 1 0 9M4.9 4.9a10 10 0 0 0 0 14.2M19.1 4.9a10 10 0 0 1 0 14.2"/><path d="M8 21h8" /></svg></button>
+          <button id="np-list-btn" aria-label="リスト"><svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M8.5 6h12M8.5 12h12M8.5 18h12"/><circle cx="4" cy="6" r="1.3" fill="currentColor" stroke="none"/><circle cx="4" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="4" cy="18" r="1.3" fill="currentColor" stroke="none"/></svg></button>
+        </div>
+
+        <div class="queuebox hidden" id="np-device-box"><h3>再生するデバイス</h3><div class="devlist" id="np-devices"></div></div>
+        <div class="queuebox hidden" id="np-queue-box"><h3>次に再生</h3><div id="np-queue"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* ================= Spotify Web Player — standalone PKCE client ================= */
+var SCOPES = "user-read-playback-state user-modify-playback-state user-read-currently-playing user-library-read user-library-modify playlist-read-private playlist-modify-public playlist-modify-private user-read-private user-read-recently-played streaming user-read-email";
+var API = "https://api.spotify.com/v1";
+var state = {
+  token: null, refresh: null, expiresAt: 0, clientId: "",
+  user: null, player: null, deviceId: null, sdkReady: false,
+  current: null, isPlaying: false, progress: 0, duration: 0,
+  shuffle: false, repeat: "off", volume: 50, liked: false,
+  playlists: [], likedTracks: [], devices: [], queue: [],
+  searchType: "all", seeking: false, lastTick: 0
+};
+
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+function fmt(ms){ if(!ms||ms<0) ms=0; var s=Math.floor(ms/1000); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
+function toast(msg){ var t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._h); t._h=setTimeout(function(){ t.classList.remove("show"); },2600); }
+function redirectUri(){ return location.href.split("#")[0].split("?")[0]; }
+function imgOf(obj, size){ var imgs = obj && obj.images ? obj.images : (obj && obj.album && obj.album.images) || []; if(!imgs.length) return ""; if(size==="small") return (imgs[imgs.length-1]||imgs[0]).url; return imgs[0].url; }
+function artistNames(t){ return (t.artists||[]).map(function(a){ return a.name; }).join("、"); }
+function appleLink(t){ return "https://music.apple.com/jp/search?term="+encodeURIComponent(t.name+" "+((t.artists&&t.artists[0])?t.artists[0].name:"")); }
+function initials(name){ return (name||"♪").trim().charAt(0).toUpperCase()||"♪"; }
+var TILE_COLORS=["#e13300","#7358ff","#1e3264","#e8115b","#477d95","#117a65","#ba5d07","#0d73ec","#8d67ab","#e61e32"];
+function colorFor(str){ var h=0; for(var i=0;i<(str||"").length;i++) h=(h*31+str.charCodeAt(i))>>>0; return TILE_COLORS[h%TILE_COLORS.length]; }
+function artHTML(obj, cls, name){
+  var u=imgOf(obj);
+  if(u) return '<img class="'+cls+'" src="'+esc(u)+'" alt="'+esc(name||"")+'" loading="lazy">';
+  return '<span class="'+cls+' tileart-fallback" style="background:'+colorFor(name)+'">'+esc(initials(name))+'</span>';
+}
+
+/* ---------- PKCE helpers ---------- */
+function randomStr(len){ var chars="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"; var arr=new Uint8Array(len); crypto.getRandomValues(arr); return Array.from(arr).map(function(b){ return chars[b%chars.length]; }).join(""); }
+function sha256(plain){ return crypto.subtle.digest("SHA-256", new TextEncoder().encode(plain)); }
+function b64url(buf){ return btoa(String.fromCharCode.apply(null, Array.from(new Uint8Array(buf)))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
+
+function saveSession(){ try{ sessionStorage.setItem("sp_auth", JSON.stringify({t:state.token,r:state.refresh,e:state.expiresAt,c:state.clientId})); }catch(e){} }
+function loadSession(){ try{ var d=JSON.parse(sessionStorage.getItem("sp_auth")||"null"); if(d&&d.t){ state.token=d.t; state.refresh=d.r; state.expiresAt=d.e||0; state.clientId=d.c||""; return true; } }catch(e){} return false; }
+function clearSession(){ try{ sessionStorage.removeItem("sp_auth"); sessionStorage.removeItem("sp_verifier"); sessionStorage.removeItem("sp_cid"); }catch(e){} state.token=null; state.refresh=null; }
+
+function startAuth(){
+  var cid=$("client-id").value.trim();
+  if(!cid){ showErr("Client ID を入力してね。"); return; }
+  state.clientId=cid;
+  var verifier=randomStr(96);
+  try{ sessionStorage.setItem("sp_verifier",verifier); sessionStorage.setItem("sp_cid",cid); }catch(e){}
+  sha256(verifier).then(function(buf){
+    var url="https://accounts.spotify.com/authorize?response_type=code"
+      +"&client_id="+encodeURIComponent(cid)
+      +"&scope="+encodeURIComponent(SCOPES)
+      +"&redirect_uri="+encodeURIComponent(redirectUri())
+      +"&code_challenge_method=S256&code_challenge="+encodeURIComponent(b64url(buf));
+    location.href=url;
+  });
+}
+function tokenRequest(params){
+  params.client_id=state.clientId;
+  return fetch("https://accounts.spotify.com/api/token",{ method:"POST",
+    headers:{"Content-Type":"application/x-www-form-urlencoded"},
+    body:new URLSearchParams(params).toString()
+  }).then(function(r){ return r.json().then(function(j){ if(!r.ok) throw new Error(j.error_description||j.error||"トークン取得に失敗"); return j; }); })
+  .then(function(j){ state.token=j.access_token; if(j.refresh_token) state.refresh=j.refresh_token; state.expiresAt=Date.now()+(j.expires_in||3600)*1000-30000; saveSession(); return j; });
+}
+function handleCallback(){
+  var q=new URLSearchParams(location.search);
+  var code=q.get("code"), err=q.get("error");
+  history.replaceState(null,"",redirectUri());
+  if(err){ showErr("Spotify への接続がキャンセル／拒否されました（"+err+"）。もう一度お試しください。"); return Promise.resolve(false); }
+  if(!code) return Promise.resolve(false);
+  var verifier=""; try{ verifier=sessionStorage.getItem("sp_verifier")||""; state.clientId=sessionStorage.getItem("sp_cid")||""; }catch(e){}
+  if(!verifier||!state.clientId){ showErr("認証の検証情報が見つかりませんでした。もう一度「Spotifyと接続」からやり直してください。"); return Promise.resolve(false); }
+  return tokenRequest({ grant_type:"authorization_code", code:code, redirect_uri:redirectUri(), code_verifier:verifier })
+    .then(function(){ toast("Spotifyに接続しました"); return true; })
+    .catch(function(e){ showErr("トークン交換に失敗しました: "+e.message+" ／ Redirect URI の登録が一致しているか確認してください。"); return false; });
+}
+function ensureToken(){
+  if(state.token && Date.now()<state.expiresAt) return Promise.resolve(true);
+  if(state.refresh && state.clientId) return tokenRequest({ grant_type:"refresh_token", refresh_token:state.refresh }).then(function(){ return true; }).catch(function(){ return false; });
+  return Promise.resolve(false);
+}
+
+/* ---------- API ---------- */
+function api(path, opts){
+  opts=opts||{};
+  return ensureToken().then(function(ok){
+    if(!ok) throw new Error("unauth");
+    return fetch(API+path, Object.assign({}, opts, { headers:Object.assign({"Authorization":"Bearer "+state.token,"Content-Type":"application/json"}, opts.headers||{}) }));
+  }).then(function(r){
+    if(r.status===204) return null;
+    if(r.status===401){ clearSession(); location.reload(); throw new Error("unauth"); }
+    if(!r.ok) return r.json().catch(function(){return{};}).then(function(j){ throw new Error((j.error&&j.error.message)||("API "+r.status)); });
+    return r.json().catch(function(){ return null; });
+  });
+}
+
+/* ---------- Web Playback SDK ---------- */
+window.onSpotifyWebPlaybackSDKReady=function(){ state.sdkReady=true; if(state.token) initPlayer(); };
+function initPlayer(){
+  if(state.player || !state.sdkReady || !state.token) return;
+  var player=new Spotify.Player({ name:"Muse Web Player", volume:0.5,
+    getOAuthToken:function(cb){ ensureToken().then(function(){ cb(state.token); }); } });
+  state.player=player;
+  player.addListener("ready", function(d){ state.deviceId=d.device_id; toast("このデバイスで再生できるようになりました"); transferHere(false); refreshDevices(); });
+  player.addListener("not_ready", function(){ /* device offline */ });
+  player.addListener("player_state_changed", function(s){ if(s) applySdkState(s); });
+  player.addListener("initialization_error", function(e){ console.warn(e.message); });
+  player.addListener("authentication_error", function(e){ showErr("再生SDKの認証エラー: "+e.message); });
+  player.addListener("account_error", function(e){ showErr("ブラウザ内再生には Spotify Premium が必要です。Free の場合は他のデバイスで再生してください。"); });
+  player.connect();
+}
+function applySdkState(s){
+  var t=s.track_window && s.track_window.current_track;
+  state.isPlaying=!s.paused; state.progress=s.position||0; state.duration=s.duration||0;
+  state.shuffle=s.shuffle; state.repeat=["off","context","track"][s.repeat_mode]||"off";
+  if(t && (!state.current || state.current.id!==t.id)){
+    state.current={ id:t.id, uri:t.uri, name:t.name, artists:t.artists, album:{name:t.album.name, images:t.album.images.map(function(u){return{url:u};})}, duration_ms:s.duration };
+    onTrackChanged();
+  }
+  renderPlayback();
+}
+function transferHere(play){
+  if(!state.deviceId) return Promise.resolve();
+  return api("/me/player",{ method:"PUT", body:JSON.stringify({ device_ids:[state.deviceId], play:!!play }) }).catch(function(){});
+}
+
+/* ---------- Playback control ---------- */
+function playContext(uri, offsetUri){
+  var body = uri.indexOf("spotify:track:")===0 ? { uris:[uri] } : { context_uri:uri };
+  if(offsetUri) body.offset={ uri:offsetUri };
+  var path="/me/player/play"+(state.deviceId?"?device_id="+state.deviceId:"");
+  return api(path,{ method:"PUT", body:JSON.stringify(body) })
+    .then(function(){ setTimeout(pollPlayback,600); })
+    .catch(function(e){
+      if(/active device|No active/i.test(e.message)){ transferHere(true).then(function(){ setTimeout(function(){ api(path,{method:"PUT",body:JSON.stringify(body)}).catch(apiErr); },700); }); }
+      else apiErr(e);
+    });
+}
+function playTrack(t){ playContext(t.uri); }
+function apiErr(e){ if(e.message!=="unauth") toast("エラー: "+e.message); }
+function togglePlay(){
+  if(state.player && state.deviceId){ state.player.togglePlay().then(function(){ setTimeout(pollPlayback,400); }); return; }
+  api(state.isPlaying?"/me/player/pause":"/me/player/play",{method:"PUT"}).then(function(){ setTimeout(pollPlayback,400); }).catch(apiErr);
+}
+function nextTrack(){ api("/me/player/next",{method:"POST"}).then(function(){ setTimeout(pollPlayback,500); }).catch(apiErr); }
+function prevTrack(){ api("/me/player/previous",{method:"POST"}).then(function(){ setTimeout(pollPlayback,500); }).catch(apiErr); }
+function seekTo(ms){ api("/me/player/seek?position_ms="+Math.round(ms),{method:"PUT"}).catch(apiErr); }
+function setVol(v){
+  state.volume=v;
+  if(state.player) state.player.setVolume(v/100).catch(function(){});
+  api("/me/player/volume?volume_percent="+v,{method:"PUT"}).catch(function(){});
+}
+function toggleShuffle(){ api("/me/player/shuffle?state="+(!state.shuffle),{method:"PUT"}).then(function(){ state.shuffle=!state.shuffle; renderPlayback(); }).catch(apiErr); }
+function cycleRepeat(){ var n=state.repeat==="off"?"context":state.repeat==="context"?"track":"off"; api("/me/player/repeat?state="+n,{method:"PUT"}).then(function(){ state.repeat=n; renderPlayback(); }).catch(apiErr); }
+
+function pollPlayback(){
+  if(!state.token) return;
+  api("/me/player").then(function(p){
+    if(!p||!p.item){ return; }
+    var changed=!state.current||state.current.id!==p.item.id;
+    state.current=p.item; state.isPlaying=p.is_playing; state.progress=p.progress_ms||0;
+    state.duration=p.item.duration_ms||0; state.shuffle=p.shuffle_state; state.repeat=p.repeat_state;
+    if(p.device) state.volume=p.device.volume_percent!=null?p.device.volume_percent:state.volume;
+    if(changed) onTrackChanged();
+    renderPlayback();
+  }).catch(function(){});
+  api("/me/player/queue").then(function(q){ if(q){ state.queue=q.queue||[]; renderQueue(); } }).catch(function(){});
+}
+function refreshDevices(){
+  if(!state.token) return;
+  api("/me/player/devices").then(function(d){ state.devices=(d&&d.devices)||[]; renderDevices(); }).catch(function(){});
+}
+
+/* ---------- Artwork colour ---------- */
+var colorCache={};
+function extractColor(url){
+  if(!url) return Promise.resolve(null);
+  if(colorCache[url]) return Promise.resolve(colorCache[url]);
+  return new Promise(function(res){
+    var img=new Image(); img.crossOrigin="anonymous";
+    img.onload=function(){ try{
+      var c=document.createElement("canvas"); c.width=c.height=24; var x=c.getContext("2d"); x.drawImage(img,0,0,24,24);
+      var d=x.getImageData(0,0,24,24).data, r=0,g=0,b=0,n=0;
+      for(var i=0;i<d.length;i+=16){ r+=d[i]; g+=d[i+1]; b+=d[i+2]; n++; }
+      var col="rgb("+Math.round(r/n*0.72)+","+Math.round(g/n*0.72)+","+Math.round(b/n*0.72)+")";
+      colorCache[url]=col; res(col);
+    }catch(e){ res(null); } };
+    img.onerror=function(){ res(null); };
+    img.src=url;
+  });
+}
+
+/* ---------- Rendering: playback ---------- */
+var ICON_PLAY='<svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.8v14.4L19 12z"/></svg>';
+var ICON_PAUSE='<svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4.5" width="4.2" height="15" rx="1.2"/><rect x="13.8" y="4.5" width="4.2" height="15" rx="1.2"/></svg>';
+var ICON_PLAY_BIG='<svg width="64" height="64" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.8v14.4L19 12z"/></svg>';
+var ICON_PAUSE_BIG='<svg width="64" height="64" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4.5" width="4.2" height="15" rx="1.2"/><rect x="13.8" y="4.5" width="4.2" height="15" rx="1.2"/></svg>';
+var STAR='<svg width="27" height="27" viewBox="0 0 24 24" fill="currentColor"><path d="m12 2.6 2.9 5.9 6.5.95-4.7 4.58 1.1 6.47L12 17.45l-5.8 3.05 1.1-6.47L2.6 9.45l6.5-.95z"/></svg>';
+var STAR_O='<svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="m12 2.6 2.9 5.9 6.5.95-4.7 4.58 1.1 6.47L12 17.45l-5.8 3.05 1.1-6.47L2.6 9.45l6.5-.95z"/></svg>';
+
+function onTrackChanged(){
+  var t=state.current; if(!t) return;
+  checkLiked(t.id);
+  extractColor(imgOf(t)).then(function(col){ if(col) document.documentElement.style.setProperty("--np-tint",col); });
+}
+function checkLiked(id){
+  if(!id) return;
+  api("/me/tracks/contains?ids="+encodeURIComponent(id)).then(function(r){ state.liked=!!(r&&r[0]); renderLike(); }).catch(function(){});
+}
+function renderLike(){ $("np-like").innerHTML=state.liked?STAR:STAR_O; $("np-like").className=state.liked?"liked":"unliked"; }
+function setRangeFill(el){ if(!el.max||+el.max===0){ el.style.setProperty("--fill","0%"); return; } el.style.setProperty("--fill",(el.value/el.max*100)+"%"); }
+
+function renderPlayback(){
+  var t=state.current;
+  $("mini-play").innerHTML=state.isPlaying?ICON_PAUSE:ICON_PLAY;
+  $("np-play").innerHTML=state.isPlaying?ICON_PAUSE_BIG:ICON_PLAY_BIG;
+  if(!t){ $("mini").classList.add("hidden"); return; }
+  $("mini").classList.remove("hidden");
+  var art=imgOf(t);
+  if(art){ $("mini-art").src=art; $("mini-art").style.display=""; } else { $("mini-art").style.display="none"; }
+  $("mini-title").textContent=t.name; $("mini-artist").textContent=artistNames(t);
+  $("np-title").textContent=t.name; $("np-artist").textContent=artistNames(t);
+  $("np-head-title").textContent=t.name; $("np-head-artist").textContent=artistNames(t);
+  if(art){ $("np-art").src=art; $("np-bg-img").src=art; $("np-head-art").src=art; }
+  $("np-art").classList.toggle("small",!state.isPlaying);
+  $("np-apple").href=appleLink(t);
+  $("np-spotify").href="https://open.spotify.com/track/"+t.id;
+  var seek=$("np-seek");
+  if(!state.seeking && state.duration){ seek.max=state.duration; seek.value=state.progress; setRangeFill(seek);
+    $("np-elapsed").textContent=fmt(state.progress); $("np-remain").textContent="-"+fmt(state.duration-state.progress); }
+  var vol=$("np-vol"); if(document.activeElement!==vol){ vol.value=state.volume; setRangeFill(vol); }
+  $("np-shuffle").classList.toggle("on",state.shuffle);
+  $("np-repeat").classList.toggle("on",state.repeat!=="off");
+  renderLike();
+}
+function renderQueue(){
+  var box=$("np-queue"); if(!state.queue.length){ box.innerHTML='<p style="color:rgba(255,255,255,.6);font-size:14px;">キューは空です</p>'; return; }
+  box.innerHTML=state.queue.slice(0,20).map(function(t){
+    return '<button class="qrow" data-play-uri="'+esc(t.uri)+'"><img src="'+esc(imgOf(t))+'" alt=""><span style="flex:1;min-width:0;"><span class="t" style="display:block;">'+esc(t.name)+'</span><span class="a" style="display:block;">'+esc(artistNames(t))+'</span></span></button>';
+  }).join("");
+}
+function renderDevices(){
+  var box=$("np-devices");
+  if(!state.devices.length){ box.innerHTML='<p style="color:rgba(255,255,255,.6);font-size:14px;">デバイスが見つかりません。Spotifyアプリを開くか、このページの再生SDK接続を待ってください。</p>'; return; }
+  box.innerHTML=state.devices.map(function(d){
+    return '<button class="devrow'+(d.is_active?" on":"")+'" data-device="'+esc(d.id)+'"><span style="flex:1;">'+esc(d.name)+'<br><span class="dsub">'+esc(d.type)+(d.id===state.deviceId?" · このブラウザ":"")+(d.is_active?" · 再生中":"")+'</span></span>'+(d.is_active?"✓":"")+'</button>';
+  }).join("");
+}
+
+/* ---------- Rendering: lists ---------- */
+function trackRow(t, ctxUri){
+  var playing=state.current&&state.current.id===t.id;
+  return '<div class="row" data-track-uri="'+esc(t.uri)+'" data-ctx="'+esc(ctxUri||"")+'" role="button" tabindex="0">'
+    + artHTML(t,"art",t.name)
+    + '<span class="meta"><span class="t" style="display:block;">'+esc(t.name)+'</span><span class="a" style="display:block;">'+(playing?'<span class="now-eq">再生中 · </span>':"")+esc(artistNames(t))+'</span></span>'
+    + '<button class="iconbtn" data-apple="'+esc(appleLink(t))+'" aria-label="Apple Musicで開く"><svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M17.05 12.54c-.03-2.89 2.36-4.27 2.47-4.34-1.35-1.97-3.44-2.24-4.18-2.27-1.78-.18-3.47 1.05-4.37 1.05-.9 0-2.29-1.02-3.77-1-1.94.03-3.72 1.13-4.72 2.86-2.01 3.49-.51 8.66 1.45 11.5.96 1.39 2.1 2.94 3.6 2.88 1.45-.06 2-.93 3.74-.93s2.24.93 3.77.9c1.56-.02 2.55-1.41 3.5-2.8 1.1-1.61 1.56-3.17 1.58-3.25-.03-.02-3.04-1.17-3.07-4.6zM14.16 4.06c.8-.97 1.34-2.32 1.19-3.66-1.15.05-2.55.77-3.38 1.73-.74.86-1.39 2.23-1.22 3.55 1.29.1 2.6-.65 3.41-1.62z"/></svg></button>'
+    + '</div>';
+}
+function needConnectHTML(){
+  return '<div class="panel"><h2>まず Spotify と接続してね</h2><p>検索・ライブラリ・再生は、あなたの Client ID で接続したあとに使えます。接続タブから Client ID を入力して連携してください。</p><button class="btn-green" onclick="switchView(\'connect\')">接続タブを開く</button></div>';
+}
+
+/* ---------- Home ---------- */
+function loadHome(){
+  var body=$("home-body");
+  if(!state.token){ body.innerHTML=needConnectHTML(); return; }
+  body.innerHTML='<div class="loading">読み込み中…</div>';
+  Promise.all([
+    api("/me/playlists?limit=10").catch(function(){ return null; }),
+    api("/me/player/recently-played?limit=12").catch(function(){ return null; }),
+    api("/me/tracks?limit=12").catch(function(){ return null; })
+  ]).then(function(res){
+    var pls=(res[0]&&res[0].items)||[];
+    var recent=[]; var seen={};
+    ((res[1]&&res[1].items)||[]).forEach(function(it){ if(it.track&&!seen[it.track.id]){ seen[it.track.id]=1; recent.push(it.track); } });
+    if(!recent.length) recent=((res[2]&&res[2].items)||[]).map(function(it){ return it.track; });
+    var html="";
+    if(pls.length){
+      html+='<div class="pickups">'+pls.slice(0,2).map(function(p){
+        return '<button class="pickup" data-open-pl="'+esc(p.id)+'">'+(imgOf(p)?'<img class="bg" src="'+esc(imgOf(p))+'" alt="">':'<span class="bg tileart-fallback" style="background:'+colorFor(p.name)+'"></span>')+'<span class="veil"></span><span class="brand">Spotify</span><span class="pc"><span class="pk">プレイリスト</span><span class="pt" style="display:block;">'+esc(p.name)+'</span><span class="pa" style="display:block;">'+esc((p.tracks&&p.tracks.total)||0)+'曲</span></span></button>';
+      }).join("")+'</div>';
+    }
+    if(recent.length){
+      html+='<h2 class="sec-title">最近の再生 <span class="chev">›</span></h2><div class="grid">'
+        + recent.slice(0,8).map(function(t){ return '<button class="cell" data-track-uri="'+esc(t.uri)+'">'+artHTML(t,"art",t.name)+'<span class="t" style="display:block;">'+esc(t.name)+'</span><span class="a" style="display:block;">'+esc(artistNames(t))+'</span></button>'; }).join("")+'</div>';
+    }
+    if(pls.length>2){
+      html+='<h2 class="sec-title">プレイリスト</h2><div class="grid">'
+        + pls.slice(2,10).map(function(p){ return '<button class="cell" data-open-pl="'+esc(p.id)+'">'+artHTML(p,"art",p.name)+'<span class="t" style="display:block;">'+esc(p.name)+'</span><span class="a" style="display:block;">'+esc((p.tracks&&p.tracks.total)||0)+'曲</span></button>'; }).join("")+'</div>';
+    }
+    body.innerHTML=html||'<div class="empty">まだ表示できるコンテンツがありません。検索から曲を探してみてください。</div>';
+  });
+}
+
+/* ---------- Library ---------- */
+function loadLibrary(){
+  var body=$("lib-body");
+  if(!state.token){ body.innerHTML=needConnectHTML(); return; }
+  body.innerHTML='<div class="loading">読み込み中…</div>';
+  Promise.all([
+    api("/me/playlists?limit=50").catch(function(){ return null; }),
+    api("/me/tracks?limit=50").catch(function(){ return null; })
+  ]).then(function(res){
+    state.playlists=(res[0]&&res[0].items)||[];
+    state.likedTracks=((res[1]&&res[1].items)||[]).map(function(it){ return it.track; }).filter(Boolean);
+    var total=(res[1]&&res[1].total)||state.likedTracks.length;
+    var html='';
+    html+='<button class="librow" id="lib-liked"><span class="lic"><svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h13v3H7.5v10.5A3 3 0 1 1 5 14.6V4zm15 0h2v9h-2z" opacity=".0"/><path d="M20.8 4.6a1 1 0 0 0-1.3-.7l-6 1.7A1 1 0 0 0 12.8 6.6v7.14a3.25 3.25 0 1 0 2 3v-6.6l5-1.43V16a3.25 3.25 0 1 0 2 3V5.3a1 1 0 0 0-1-.7zM7 3v11.36A3.25 3.25 0 1 0 9 17.5V6h10V3.75A.75.75 0 0 0 18.25 3H7z" transform="scale(.94) translate(.7,.7)"/></svg></span>お気に入りの曲<span class="chev">›</span></button>';
+    html+='<button class="librow" id="lib-pl-focus"><span class="lic"><svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><path d="M3 5h13v2H3zM3 11h13v2H3zM3 17h9v2H3zM18 14.5v-3h-1.6v3H13v1.7h3.4V20H18v-3.8h3.4V14.5z"/></svg></span>プレイリスト<span class="chev">›</span></button>';
+    html+='<h2 class="sec-title">プレイリスト</h2>';
+    html+=state.playlists.map(function(p){
+      return '<div class="row" data-open-pl="'+esc(p.id)+'" role="button" tabindex="0">'+artHTML(p,"art",p.name)+'<span class="meta"><span class="t" style="display:block;">'+esc(p.name)+'</span><span class="a" style="display:block;">'+esc((p.tracks&&p.tracks.total)||0)+'曲'+(p.owner?" · "+esc(p.owner.display_name||""):"")+'</span></span><span style="color:var(--faint);">›</span></div>';
+    }).join("")||'<div class="empty">プレイリストがありません</div>';
+    html+='<h2 class="sec-title">最近追加した項目</h2><div class="grid">'
+      + state.likedTracks.slice(0,4).map(function(t){ return '<button class="cell" data-track-uri="'+esc(t.uri)+'">'+artHTML(t,"art",t.name)+'<span class="t" style="display:block;">'+esc(t.name)+'</span><span class="a" style="display:block;">'+esc(artistNames(t))+'</span></button>'; }).join("")+'</div>';
+    html+='<h2 class="sec-title">お気に入りの曲（'+total+'曲）</h2><div id="liked-list">'
+      + state.likedTracks.map(function(t){ return trackRow(t,"liked"); }).join("")+'</div>';
+    html+='<button class="btn-ghost" id="create-pl" style="background:var(--card);border:1px solid var(--line);">＋ 新しいプレイリストを作る</button>';
+    body.innerHTML=html;
+    $("create-pl").addEventListener("click", createPlaylist);
+    $("lib-liked").addEventListener("click", function(){ var el=$("liked-list"); if(el) el.scrollIntoView({behavior:"smooth"}); });
+    $("lib-pl-focus").addEventListener("click", function(){ window.scrollTo({top:340,behavior:"smooth"}); });
+  });
+}
+function createPlaylist(){
+  var name="新しいプレイリスト "+new Date().toLocaleDateString("ja-JP");
+  if(!state.user) return;
+  api("/users/"+encodeURIComponent(state.user.id)+"/playlists",{ method:"POST", body:JSON.stringify({ name:name, public:false, description:"Muse Web Player から作成" }) })
+    .then(function(){ toast("プレイリストを作成しました"); loadLibrary(); }).catch(apiErr);
+}
+
+/* ---------- Playlist detail ---------- */
+function openPlaylist(id){
+  switchView("playlist");
+  var body=$("pl-body"); body.innerHTML='<div class="loading">読み込み中…</div>';
+  Promise.all([
+    api("/playlists/"+encodeURIComponent(id)).catch(function(){ return null; }),
+    api("/playlists/"+encodeURIComponent(id)+"/tracks?limit=100").catch(function(){ return null; })
+  ]).then(function(res){
+    var p=res[0]; if(!p){ body.innerHTML='<div class="empty">プレイリストを開けませんでした</div>'; return; }
+    var tracks=((res[1]&&res[1].items)||[]).map(function(it){ return it.track; }).filter(Boolean);
+    body.innerHTML='<div style="text-align:center;padding:14px 0 4px;">'
+      + '<span style="display:inline-block;width:min(240px,62vw);">'+artHTML(p,"art",p.name).replace('class="art"','style="width:100%;aspect-ratio:1;border-radius:14px;object-fit:cover;box-shadow:0 14px 34px rgba(0,0,0,.22);"')+'</span>'
+      + '<h1 style="font-size:26px;font-weight:800;margin:16px 0 4px;">'+esc(p.name)+'</h1>'
+      + '<p style="color:var(--sub);font-size:14px;margin:0;">'+esc((p.owner&&p.owner.display_name)||"")+' · '+tracks.length+'曲</p>'
+      + (p.description?'<p style="color:var(--sub);font-size:14px;line-height:1.6;">'+esc(p.description.replace(/<[^>]+>/g,""))+'</p>':"")
+      + '<button class="btn-green" style="max-width:340px;margin-left:auto;margin-right:auto;" id="pl-play">▶ このプレイリストを再生</button></div>'
+      + '<div style="margin-top:18px;">'+tracks.map(function(t){ return trackRow(t,p.uri); }).join("")+'</div>';
+    $("pl-play").addEventListener("click", function(){ if(tracks.length) playContext(p.uri, tracks[0].uri); });
+  });
+}
+
+/* ---------- Search ---------- */
+var BROWSE=[["J-POP","#e8115b","J-POP"],["ポップス","#7358ff","ポップ"],["ロック","#e13300","ロック"],["ヒップホップ","#ba5d07","ヒップホップ"],["アニメ","#0d73ec","アニソン"],["ワークアウト","#777777","ワークアウト"],["チル","#477d95","チル"],["ドライブ","#1e3264","ドライブ"],["睡眠","#2d46b9","睡眠"],["K-POP","#e61e32","K-POP"],["ジャズ","#117a65","ジャズ"],["クラシック","#8d67ab","クラシック"]];
+function renderBrowse(){
+  $("search-body").innerHTML='<h2 class="sec-title" style="margin-top:8px;">カテゴリーから探す</h2><div class="tiles">'
+    + BROWSE.map(function(b){ return '<button class="tile" style="background:'+b[1]+'" data-browse="'+esc(b[2])+'">'+esc(b[0])+'</button>'; }).join("")+'</div>'
+    + '<p class="empty">上の検索バーに曲名やアーティスト名を入れると、ジャケット写真付きで結果が表示されます。各曲の  マークからは Apple Music でも開けます。</p>';
+}
+var searchTimer=null;
+function doSearch(){
+  var q=$("search-input").value.trim();
+  if(!q){ renderBrowse(); return; }
+  if(!state.token){ $("search-body").innerHTML=needConnectHTML(); return; }
+  var type=state.searchType==="all"?"track,album,artist,playlist":state.searchType;
+  api("/search?q="+encodeURIComponent(q)+"&type="+type+"&limit=24&market=JP&locale=ja-JP").then(function(r){
+    var html="";
+    var tracks=(r.tracks&&r.tracks.items)||[];
+    var albums=(r.albums&&r.albums.items)||[];
+    var artists=(r.artists&&r.artists.items)||[];
+    var pls=(r.playlists&&r.playlists.items)||[];
+    if(state.searchType==="all"||state.searchType==="track"){
+      if(tracks.length) html+='<h2 class="sec-title">曲</h2>'+tracks.slice(0, state.searchType==="all"?6:24).map(function(t){ return trackRow(t,""); }).join("");
+    }
+    if((state.searchType==="all"||state.searchType==="artist")&&artists.length){
+      html+='<h2 class="sec-title">アーティスト</h2>'+artists.slice(0,6).map(function(a){
+        return '<div class="row" data-artist-q="'+esc(a.name)+'">'+artHTML(a,"art round",a.name)+'<span class="meta"><span class="t" style="display:block;">'+esc(a.name)+'</span><span class="a" style="display:block;">アーティスト</span></span><span style="color:var(--faint);">›</span></div>';
+      }).join("");
+    }
+    if((state.searchType==="all"||state.searchType==="album")&&albums.length){
+      html+='<h2 class="sec-title">アルバム</h2><div class="grid">'+albums.slice(0,8).map(function(a){
+        return '<button class="cell" data-album-uri="'+esc(a.uri)+'">'+artHTML(a,"art",a.name)+'<span class="t" style="display:block;">'+esc(a.name)+'</span><span class="a" style="display:block;">'+esc(artistNames(a))+'</span></button>';
+      }).join("")+'</div>';
+    }
+    if((state.searchType==="all"||state.searchType==="playlist")&&pls.length){
+      html+='<h2 class="sec-title">プレイリスト</h2><div class="grid">'+pls.slice(0,8).map(function(p){
+        return '<button class="cell" data-open-pl="'+esc(p.id)+'">'+artHTML(p,"art",p.name)+'<span class="t" style="display:block;">'+esc(p.name)+'</span><span class="a" style="display:block;">プレイリスト</span></button>';
+      }).join("")+'</div>';
+    }
+    $("search-body").innerHTML=html||'<div class="empty">「'+esc(q)+'」の結果は見つかりませんでした</div>';
+  }).catch(apiErr);
+}
+
+/* ---------- Views ---------- */
+var VIEWS=["home","library","search","connect","playlist"];
+function switchView(v){
+  VIEWS.forEach(function(x){ $("view-"+x).classList.toggle("hidden", x!==v); });
+  document.querySelectorAll(".tab").forEach(function(t){ t.classList.toggle("on", t.getAttribute("data-view")===v); });
+  window.scrollTo(0,0);
+  if(v==="home") loadHome();
+  if(v==="library") loadLibrary();
+  if(v==="search" && !$("search-body").innerHTML) renderBrowse();
+}
+window.switchView=switchView;
+
+/* ---------- Account / status ---------- */
+function showErr(msg){ var e=$("auth-err"); if(!e) return; e.textContent=msg; e.style.display=msg?"block":"none"; if(msg) switchView("connect"); }
+function renderStatus(){
+  var on=!!state.token;
+  $("status-dot").classList.toggle("on",on);
+  $("status-text").textContent=on?"接続中":"未接続";
+  $("connect-panel").classList.toggle("hidden",on);
+  $("account-panel").classList.toggle("hidden",!on);
+  if(on&&state.user){
+    $("account-name").textContent=state.user.display_name||"接続中";
+    $("account-meta").textContent=(state.user.email||"")+" · プラン: "+(state.user.product==="premium"?"Premium":"Free / その他");
+    [$("home-avatar"),$("lib-avatar"),$("search-avatar")].forEach(function(a){
+      var u=imgOf(state.user); a.innerHTML=u?'<img src="'+esc(u)+'" alt="">':esc(initials(state.user.display_name||"S"));
+    });
+    $("home-sub").textContent="あなたへのピックアップ";
+  }
+}
+function loadUser(){
+  return api("/me").then(function(u){ state.user=u; renderStatus(); }).catch(function(){ renderStatus(); });
+}
+
+/* ---------- Events ---------- */
+document.addEventListener("click", function(e){
+  var apple=e.target.closest("[data-apple]");
+  if(apple){ e.stopPropagation(); window.open(apple.getAttribute("data-apple"),"_blank","noopener"); return; }
+  var tr=e.target.closest("[data-track-uri]");
+  if(tr && state.current && tr.getAttribute("data-track-uri")===state.current.uri && tr.closest("#np-queue")) return;
+  if(tr){ var uri=tr.getAttribute("data-track-uri"), ctx=tr.getAttribute("data-ctx");
+    if(ctx && ctx!=="liked") playContext(ctx, uri); else if(ctx==="liked" && state.likedTracks.length>1){ /* play liked as track sequence via single track */ playContext(uri); } else playContext(uri); return; }
+  var pl=e.target.closest("[data-open-pl]"); if(pl){ openPlaylist(pl.getAttribute("data-open-pl")); return; }
+  var al=e.target.closest("[data-album-uri]"); if(al){ playContext(al.getAttribute("data-album-uri")); toast("アルバムを再生します"); return; }
+  var ar=e.target.closest("[data-artist-q]"); if(ar){ $("search-input").value=ar.getAttribute("data-artist-q"); state.searchType="track"; syncChips(); doSearch(); return; }
+  var br=e.target.closest("[data-browse]"); if(br){ $("search-input").value=br.getAttribute("data-browse"); state.searchType="track"; syncChips(); doSearch(); return; }
+  var dv=e.target.closest("[data-device]"); if(dv){ var id=dv.getAttribute("data-device"); api("/me/player",{method:"PUT",body:JSON.stringify({device_ids:[id],play:true})}).then(function(){ state.deviceId=id; toast("デバイスを切り替えました"); setTimeout(function(){ refreshDevices(); pollPlayback(); },600); }).catch(apiErr); return; }
+});
+function syncChips(){ document.querySelectorAll("#search-chips .chip").forEach(function(c){ c.classList.toggle("on", c.getAttribute("data-type")===state.searchType); }); }
+
+function bind(){
+  $("redirect-uri").textContent=redirectUri();
+  $("client-id").addEventListener("input", function(){ $("connect-btn").disabled=!$("client-id").value.trim(); });
+  $("connect-btn").addEventListener("click", startAuth);
+  $("disconnect-btn").addEventListener("click", function(){ clearSession(); if(state.player) state.player.disconnect(); state.token=null; state.user=null; renderStatus(); loadHome(); toast("接続を解除しました"); });
+  $("transfer-btn").addEventListener("click", function(){ if(state.deviceId){ transferHere(true).then(function(){ toast("このデバイスで再生します"); }); } else toast("再生SDKの準備中です。少し待ってからもう一度押してください。"); });
+  document.querySelectorAll(".tab").forEach(function(t){ t.addEventListener("click", function(){ switchView(t.getAttribute("data-view")); }); });
+  $("pl-back").addEventListener("click", function(){ switchView("library"); });
+
+  $("search-input").addEventListener("input", function(){ clearTimeout(searchTimer); searchTimer=setTimeout(doSearch,420); });
+  document.querySelectorAll("#search-chips .chip").forEach(function(c){ c.addEventListener("click", function(){ state.searchType=c.getAttribute("data-type"); syncChips(); doSearch(); }); });
+
+  /* mini + now playing */
+  $("mini").addEventListener("click", function(e){ if(e.target.closest(".ctl")) return; openNP(); });
+  $("mini-play").addEventListener("click", function(e){ e.stopPropagation(); togglePlay(); });
+  $("mini-next").addEventListener("click", function(e){ e.stopPropagation(); nextTrack(); });
+  $("np-close").addEventListener("click", closeNP);
+  $("np-play").addEventListener("click", togglePlay);
+  $("np-next").addEventListener("click", nextTrack);
+  $("np-prev").addEventListener("click", prevTrack);
+  $("np-shuffle").addEventListener("click", toggleShuffle);
+  $("np-repeat").addEventListener("click", cycleRepeat);
+  $("np-like").addEventListener("click", function(){
+    if(!state.current) return;
+    var id=state.current.id;
+    api("/me/tracks?ids="+encodeURIComponent(id),{ method: state.liked?"DELETE":"PUT" }).then(function(){ state.liked=!state.liked; renderLike(); toast(state.liked?"お気に入りに追加しました":"お気に入りから削除しました"); }).catch(apiErr);
+  });
+  $("np-menu-btn").addEventListener("click", function(){ $("np-menu").classList.toggle("hidden"); });
+  $("np-add-pl").addEventListener("click", function(){
+    var box=$("np-pl-list");
+    if(!state.playlists.length){ api("/me/playlists?limit=50").then(function(r){ state.playlists=(r&&r.items)||[]; fillPl(box); }).catch(apiErr); } else fillPl(box);
+  });
+  function fillPl(box){
+    box.innerHTML=state.playlists.map(function(p){ return '<button data-add-pl="'+esc(p.id)+'">＋ '+esc(p.name)+' に追加</button>'; }).join("")||'<p style="color:rgba(255,255,255,.65);font-size:14px;">プレイリストがありません</p>';
+    box.querySelectorAll("[data-add-pl]").forEach(function(b){ b.addEventListener("click", function(){
+      if(!state.current) return;
+      api("/playlists/"+encodeURIComponent(b.getAttribute("data-add-pl"))+"/tracks",{ method:"POST", body:JSON.stringify({ uris:[state.current.uri] }) }).then(function(){ toast("プレイリストに追加しました"); }).catch(apiErr);
+    }); });
+  }
+  var seek=$("np-seek");
+  seek.addEventListener("input", function(){ state.seeking=true; setRangeFill(seek); if(state.duration){ $("np-elapsed").textContent=fmt(+seek.value); $("np-remain").textContent="-"+fmt(state.duration-(+seek.value)); } });
+  seek.addEventListener("change", function(){ state.seeking=false; seekTo(+seek.value); });
+  var vol=$("np-vol");
+  vol.addEventListener("input", function(){ setRangeFill(vol); setVol(+vol.value); });
+  $("np-queue-btn").addEventListener("click", function(){ toggleNPBox("np-queue-box"); });
+  $("np-list-btn").addEventListener("click", function(){ toggleNPBox("np-queue-box"); });
+  $("np-device-btn").addEventListener("click", function(){ refreshDevices(); toggleNPBox("np-device-box"); });
+}
+function toggleNPBox(id){
+  ["np-queue-box","np-device-box"].forEach(function(x){ if(x!==id) $(x).classList.add("hidden"); });
+  $(id).classList.toggle("hidden");
+  var showQueue=!$("np-queue-box").classList.contains("hidden");
+  $("np-queue-btn").classList.toggle("on",showQueue);
+  $("np-list-btn").classList.toggle("on",showQueue);
+  $("np-art").style.display=showQueue?"none":"";
+  $("np-minihead").style.display=showQueue?"flex":"none";
+}
+function openNP(){ $("np").classList.add("open"); document.body.classList.add("np-open"); pollPlayback(); refreshDevices(); }
+function closeNP(){ $("np").classList.remove("open"); document.body.classList.remove("np-open"); }
+
+/* progress ticker */
+setInterval(function(){
+  if(state.isPlaying && state.duration && !state.seeking){
+    state.progress=Math.min(state.duration, state.progress+1000);
+    var seek=$("np-seek"); seek.max=state.duration; seek.value=state.progress; setRangeFill(seek);
+    $("np-elapsed").textContent=fmt(state.progress); $("np-remain").textContent="-"+fmt(state.duration-state.progress);
+  }
+},1000);
+setInterval(pollPlayback, 6000);
+
+/* ---------- Boot ---------- */
+bind();
+renderBrowse();
+loadSession();
+if(state.clientId) $("client-id").value=state.clientId;
+$("connect-btn").disabled=!$("client-id").value.trim();
+handleCallback().then(function(){
+  if(state.token){
+    ensureToken().then(function(){
+      loadUser().then(function(){ initPlayer(); loadHome(); pollPlayback(); setTimeout(pollPlayback,1500); });
+    });
+  } else {
+    var q=new URLSearchParams(location.search);
+    renderStatus(); loadHome();
+  }
+});
+</script>
+</body>
+</html>
